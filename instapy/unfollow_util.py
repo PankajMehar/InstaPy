@@ -15,7 +15,7 @@ import random
 def set_automated_followed_pool(username, logger):
     automatedFollowedPool = []
     try:
-        with open('./logs/' + username + '_followedPool.csv') as \
+        with open('./logs/{}_followedPool.csv'.format(username), 'r+') as \
                 followedPoolFile:
             reader = csv.reader(followedPoolFile)
             automatedFollowedPool = [row[0] for row in reader]
@@ -128,7 +128,7 @@ def unfollow(browser,
         except BaseException as e:
             logger.error("unfollow loop error {}".format(str(e)))
 
-    elif onlyInstapyFollowed is not True and onlyNotFollowMe is True:
+    elif onlyInstapyFollowed is False and onlyNotFollowMe is True:
         # unfollow only not follow me
         try:
             browser.get(
@@ -146,7 +146,6 @@ def unfollow(browser,
 
         all_followers = []
         all_following = []
-        unfollow_list = []
 
         variables = {}
         variables['id'] = user_data['id']
@@ -162,10 +161,12 @@ def unfollow(browser,
                     .format(graphql_followers, str(json.dumps(variables)))
                 )
                 if i != 0:
+                    del variables['after']
                     url = (
                         '{}&variables={}'
                         .format(graphql_following, str(json.dumps(variables)))
                     )
+                sleep(2)
                 browser.get(url)
 
                 # fetch all user while still has data
@@ -205,12 +206,16 @@ def unfollow(browser,
                                     str(json.dumps(variables))
                                 )
                             )
+                        sleep(2)
                         browser.get(url)
         except BaseException as e:
             print(
                 "unable to get followers and following information \n", str(e))
 
-        unfollow_list = set(all_following) - set(all_followers)
+        # make sure to unfollow users who don't follow back and don't
+        # unfollow whitelisted users
+        unfollow_list = (
+            set(all_following) - set(all_followers) - set(dont_include))
 
         # unfollow loop
         try:
@@ -263,7 +268,7 @@ def unfollow(browser,
 
         # find dialog box
         dialog = browser.find_element_by_xpath(
-            '/html/body/div[4]/div/div[2]/div')
+            "//div[text()='Following']/following-sibling::div")
 
         # scroll down the page
         scroll_bottom(browser, dialog, allfollowing)
@@ -333,7 +338,7 @@ def follow_user(browser, follow_restrict, login, user_name, blacklist, logger):
         sleep(2)
 
         if follow_button.is_displayed():
-            follow_button.send_keys("\n")
+            follow_button.click()
             update_activity('follows')
         else:
             browser.execute_script(
@@ -419,6 +424,7 @@ def follow_through_dialog(browser,
                           delay,
                           blacklist,
                           logger,
+                          follow_times,
                           callbacks=[]):
     sleep(2)
     person_followed = []
@@ -499,7 +505,9 @@ def follow_through_dialog(browser,
                 hasSlept = True
                 continue
 
-            if person not in dont_include:
+            if (person not in dont_include and
+                follow_restrict.get(person, 0) < follow_times):
+
                 followNum += 1
                 # Register this session's followed user for further interaction
                 person_followed.append(person)
@@ -508,8 +516,7 @@ def follow_through_dialog(browser,
                 log_followed_pool(login, person, logger)
                 update_activity('follows')
 
-                follow_restrict[user_name] = follow_restrict.get(
-                    user_name, 0) + 1
+                follow_restrict[person] = follow_restrict.get(person, 0) + 1
 
                 logger.info('--> Ongoing follow {}, now following: {}'
                             .format(str(followNum), person.encode('utf-8')))
@@ -550,7 +557,6 @@ def get_given_user_followers(browser,
                              amount,
                              dont_include,
                              login,
-                             follow_restrict,
                              randomize,
                              logger):
 
@@ -616,7 +622,6 @@ def get_given_user_following(browser,
                              amount,
                              dont_include,
                              login,
-                             follow_restrict,
                              randomize,
                              logger):
 
@@ -687,7 +692,8 @@ def follow_given_user_followers(browser,
                                 random,
                                 delay,
                                 blacklist,
-                                logger):
+                                logger,
+                                follow_times):
 
     browser.get('https://www.instagram.com/' + user_name)
     # update server calls
@@ -721,6 +727,7 @@ def follow_given_user_followers(browser,
                                            delay,
                                            blacklist,
                                            logger,
+                                           follow_times,
                                            callbacks=[])
 
     return personFollowed
@@ -735,7 +742,8 @@ def follow_given_user_following(browser,
                                 random,
                                 delay,
                                 blacklist,
-                                logger):
+                                logger,
+                                follow_times):
 
     browser.get('https://www.instagram.com/' + user_name)
     # update server calls
@@ -768,7 +776,8 @@ def follow_given_user_following(browser,
                                            random,
                                            delay,
                                            blacklist,
-                                           logger)
+                                           logger,
+                                           follow_times)
 
     return personFollowed
 
