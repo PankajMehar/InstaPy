@@ -87,40 +87,57 @@ def bypass_suspicious_login(browser):
 def login_user(browser,
                username,
                password,
+               logfolder,
                switch_language=True,
                bypass_suspicious_attempt=False):
     """Logins the user with the given username and password"""
     browser.get('https://www.instagram.com')
     # update server calls
     update_activity()
+    cookie_loaded = False
 
     # try to load cookie from username
     try:
         browser.get('https://www.google.com')
-        for cookie in pickle.load(open('./logs/{}_cookie.pkl'
-                                       .format(username), 'rb')):
+        for cookie in pickle.load(open('{0}{1}_cookie.pkl'
+                                       .format(logfolder,username), 'rb')):
             browser.add_cookie(cookie)
-        # logged in!
-        return True
+            cookie_loaded = True
     except (WebDriverException, OSError, IOError):
         print("Cookie file not found, creating cookie...")
-        browser.get('https://www.instagram.com')
+
+    browser.get('https://www.instagram.com')
+
+    # Cookie has been loaded, user should be logged in. Ensurue this is true
+    login_elem = browser.find_elements_by_xpath(
+        "//*[contains(text(), 'Log in')]")
+    # Login text is not found, user logged in
+    # If not, issue with cookie, create new cookie
+    if len(login_elem) == 0:
+        return True
+
+    # If not, issue with cookie, create new cookie
+    if cookie_loaded:
+        print("Issue with cookie for user " + username
+              + ". Creating new cookie...")
+
+
+
+
 
     # Changes instagram language to english, to ensure no errors ensue from
     # having the site on a different language
     # Might cause problems if the OS language is english
     if switch_language:
         browser.find_element_by_xpath(
-            "//footer[@class='_s5vm9']/div[@class='_g7lf5 _9z659']/nav["
-            "@class='_luodr']/ul[@class='_g8wl6']/li[@class='_538w0'][10]/"
-            "span[@class='_pqycz _hqmnd']/select[@class='_fsoey']/option"
-            "[text()='English']").click()
+          "//select[@class='_fsoey']/option[text()='English']").click()
 
     # Check if the first div is 'Create an Account' or 'Log In'
     login_elem = browser.find_element_by_xpath(
         "//article/div/div/p/a[text()='Log in']")
     if login_elem is not None:
         ActionChains(browser).move_to_element(login_elem).click().perform()
+
 
     # Enter username and password and logs the user in
     # Sometimes the element name isn't 'Username' and 'Password'
@@ -152,7 +169,7 @@ def login_user(browser,
     if len(nav) == 2:
         # create cookie for username
         pickle.dump(browser.get_cookies(),
-                    open('./logs/{}_cookie.pkl'.format(username), 'wb'))
+                    open('{0}{1}_cookie.pkl'.format(logfolder,username), 'wb'))
         return True
     else:
         return False
